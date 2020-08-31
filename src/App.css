@@ -2,6 +2,7 @@ p {
   margin: 2rem;
   font-size: 24px;
   font-weight: bold;
+  color: #023c54;
 }
 
 .App {
@@ -19,14 +20,13 @@ p {
 }
 
 .quarter-container {
-  border: solid 1px royalblue;
+  border-bottom: solid 2px #023c54;
   display: flex;
   align-items: flex-start;
   justify-content: flex-start;
   width: 100%;
-  max-width: 40vw;
+  max-width: 34vw;
   flex-direction: column;
-  flex: 1 1;
 }
 
 .select-container {

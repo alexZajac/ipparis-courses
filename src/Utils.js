@@ -27,7 +27,7 @@ const halfECTSCourses = [
   'Statistical Learning Theory J.Mourtada ENSAE',
   'High dimensional statistics A.Tsybakov ENSAE',
 ];
-const notCourses = [
+export const notCourses = [
   'Examens P1',
   'EXAMENS',
   'Examens',
@@ -60,17 +60,32 @@ const getEctsPerQuarter = (courseTitle) => {
   return 2.5;
 };
 
-const mapToSelectable = (dataPoint) => {
-  const { ectsPerQuarter, courseTitle } = JSON.parse(dataPoint);
+export const mapToSelectable = (dataPoint) => {
+  const { ectsPerQuarter, courseTitle } = dataPoint;
   return {
-    value: courseTitle,
-    label: `${courseTitle} (${ectsPerQuarter} ECTS)`,
+    value: dataPoint,
+    label: `${courseTitle} (${ectsPerQuarter} ECTS per quarter)`,
   };
 };
 
+export const mapToCalendar = ({
+  htmlLink,
+  courseTitle,
+  startTime,
+  endTime,
+}) => ({
+  title: courseTitle,
+  start: new Date(startTime),
+  end: new Date(endTime),
+  htmlLink,
+});
+
+export const minDate = new Date(1965, 9, 0, 9, 0, 0);
+export const maxDate = new Date(2017, 8, 0, 20, 0, 0);
+
 const getCourseData = async () => {
   const courseCalendar = await Promise.all(
-    months.map(async (m, i) => {
+    months.map(async (_, i) => {
       const response = await axios.get(
         `https://clients6.google.com/calendar/v3/calendars/1rs7sh06s9nerdi7v2rg754g1g@group.calendar.google.com/events?calendarId=1rs7sh06s9nerdi7v2rg754g1g%40group.calendar.google.com&singleEvents=true&timeZone=Europe%2FParis&maxAttendees=1&maxResults=250&sanitizeHtml=true&timeMin=${
           timeMonths[i]
