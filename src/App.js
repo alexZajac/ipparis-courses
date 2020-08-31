@@ -26,7 +26,10 @@ function App() {
     { p1Courses, p2Courses, p3Courses, courseCalendar },
     setState,
   ] = useState(initialState);
-  const [selectedCourses, setSelectedCourses] = useState([]);
+  const [selectedP1Courses, setSelectedP1Courses] = useState([]);
+  const [selectedP2Courses, setSelectedP2Courses] = useState([]);
+  const [selectedP3Courses, setSelectedP3Courses] = useState([]);
+  const [globalSelection, setGlobalSelection] = useState([]);
   // effects
   useEffect(() => {
     const setAsyncCourseData = async () => {
@@ -35,51 +38,67 @@ function App() {
     };
     setAsyncCourseData();
   }, []);
+  // set global selection of courses titles
+  useEffect(() => {
+    const newSelection = new Set([
+      ...selectedP1Courses.map(({ value: { courseTitle } }) => courseTitle),
+      ...selectedP2Courses.map(({ value: { courseTitle } }) => courseTitle),
+      ...selectedP3Courses.map(({ value: { courseTitle } }) => courseTitle),
+    ]);
+    setGlobalSelection([...newSelection]);
+  }, [selectedP1Courses, selectedP2Courses, selectedP3Courses]);
+  // update courses on multiple quarters
+  useEffect(() => {
+    const toReselectP1 = p1Courses.filter(({ courseTitle }) =>
+      globalSelection.includes(courseTitle)
+    );
+    const toReselectP2 = p2Courses.filter(({ courseTitle }) =>
+      globalSelection.includes(courseTitle)
+    );
+    const toReselectP3 = p3Courses.filter(({ courseTitle }) =>
+      globalSelection.includes(courseTitle)
+    );
+    if (selectedP1Courses.length !== toReselectP1.length)
+      setSelectedP1Courses(toReselectP1.map(mapToSelectable));
+    if (selectedP2Courses.length !== toReselectP2.length)
+      setSelectedP2Courses(toReselectP2.map(mapToSelectable));
+    if (selectedP3Courses.length !== toReselectP3.length)
+      setSelectedP3Courses(toReselectP3.map(mapToSelectable));
+  }, [globalSelection]);
   // methods
-  const handleChange = (options) => {
-    const newOptions = options === null ? [] : options;
-    setSelectedCourses(newOptions);
-  };
-  const filterByLabel = useCallback(
-    ({ label }) =>
-      selectedCourses
-        .map(({ label: compareLabel }) => compareLabel)
-        .includes(label),
-    [selectedCourses]
-  );
-  const filterSelectedByTitle = useCallback(
-    ({ courseTitle }) =>
-      selectedCourses
-        .map(({ value: { courseTitle: title } }) => title)
-        .includes(courseTitle),
-    [selectedCourses]
-  );
   const filterCalendar = useCallback(
-    (course) =>
-      filterSelectedByTitle(course) || notCourses.includes(course.courseTitle),
-    [filterSelectedByTitle]
+    ({ courseTitle }) =>
+      [...globalSelection, ...notCourses].includes(courseTitle),
+    [globalSelection]
   );
-  const filterDuplicateCourses = (v, i, a) =>
-    a.findIndex(({ courseTitle }) => courseTitle === v.courseTitle) === i;
+  const filterDuplicateCourses = useCallback(
+    (v, i, a) =>
+      a.findIndex(
+        ({ courseTitle, startTime, endTime }) =>
+          courseTitle === v.courseTitle &&
+          startTime === v.startTime &&
+          endTime === v.endTime
+      ) === i,
+    []
+  );
   const getQuarterECTS = useCallback(
     (quarterCourses) =>
       quarterCourses
-        .filter(filterSelectedByTitle)
-        .map(({ ectsPerQuarter }) => ectsPerQuarter)
+        .map(({ value: { ectsPerQuarter } }) => ectsPerQuarter)
         .reduce((a, b) => a + b, 0),
-    [filterSelectedByTitle]
+    []
   );
   // computed values
-  const p1Ects = useMemo(() => getQuarterECTS(p1Courses), [
-    p1Courses,
+  const p1Ects = useMemo(() => getQuarterECTS(selectedP1Courses), [
+    selectedP1Courses,
     getQuarterECTS,
   ]);
-  const p2Ects = useMemo(() => getQuarterECTS(p2Courses), [
-    p2Courses,
+  const p2Ects = useMemo(() => getQuarterECTS(selectedP2Courses), [
+    selectedP2Courses,
     getQuarterECTS,
   ]);
-  const p3Ects = useMemo(() => getQuarterECTS(p3Courses), [
-    p3Courses,
+  const p3Ects = useMemo(() => getQuarterECTS(selectedP3Courses), [
+    selectedP3Courses,
     getQuarterECTS,
   ]);
   const totalEcts = p1Ects + p2Ects + p3Ects;
@@ -89,16 +108,28 @@ function App() {
         .filter(filterCalendar)
         .filter(filterDuplicateCourses)
         .map(mapToCalendar),
-    [courseCalendar, filterCalendar]
+    [courseCalendar, filterCalendar, filterDuplicateCourses]
   );
 
-  const Quarter = ({ name, courses, ects }) => {
+  const Quarter = ({ name, courses, selectedCourses, ects, requiredEcts }) => {
     const courseOptions = useMemo(() => courses.map(mapToSelectable), [
       courses,
     ]);
-    const quarterCourses = useMemo(() => courseOptions.filter(filterByLabel), [
-      courseOptions,
-    ]);
+    const handleChange = useCallback((options) => {
+      const newOptions = options === null ? [] : options;
+      // removing
+      if (newOptions.length < selectedCourses.length) {
+        const {
+          value: { courseTitle: removedTitle },
+        } = selectedCourses.filter((c) => !newOptions.includes(c))[0];
+        setGlobalSelection(globalSelection.filter((s) => s !== removedTitle));
+      } else {
+        const {
+          value: { courseTitle: addedTitle },
+        } = newOptions.filter((c) => !selectedCourses.includes(c))[0];
+        setGlobalSelection([...globalSelection, addedTitle]);
+      }
+    }, []);
     return (
       <div className="quarter-container">
         <p className="primary">{`Courses for ${name}`}</p>
@@ -106,20 +137,38 @@ function App() {
           className="select-container"
           placeholder={`Pick courses for ${name}...`}
           onChange={handleChange}
-          value={quarterCourses}
+          value={selectedCourses}
           isMulti
           options={courseOptions}
         />
-        <p>{`Total ECTS for ${name}: ${ects}`}</p>
+        <p>{`Total ECTS: ${ects} (out of ${requiredEcts})`}</p>
       </div>
     );
   };
   return (
     <div className="App">
       <div className="col">
-        <Quarter name="P1" courses={p1Courses} ects={p1Ects} />
-        <Quarter name="P2" courses={p2Courses} ects={p2Ects} />
-        <Quarter name="P3" courses={p3Courses} ects={p3Ects} />
+        <Quarter
+          name="P1"
+          courses={p1Courses}
+          selectedCourses={selectedP1Courses}
+          ects={p1Ects}
+          requiredEcts={20}
+        />
+        <Quarter
+          name="P2"
+          courses={p2Courses}
+          selectedCourses={selectedP2Courses}
+          ects={p2Ects}
+          requiredEcts={10}
+        />
+        <Quarter
+          name="P3"
+          courses={p3Courses}
+          selectedCourses={selectedP3Courses}
+          ects={p3Ects}
+          requiredEcts={10}
+        />
       </div>
       <div className="col" style={{ flex: 3 }}>
         <p>{`Total ECTS: ${totalEcts} (out of 40)`}</p>
